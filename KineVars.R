@@ -3,8 +3,10 @@ library(extrafont)
 library(cowplot)
 library(mosaic)
 source('theme_JEB.R')
-d=read_csv('ePhys_KineVars.csv',col_types = 'fffdddd')
-d2=read_csv('TrialSummary.csv',col_select=1:10,col_types = 'ffddddddfd') %>%
+
+##### Load data #####
+d=read_csv('data/ePhys_KineVars.csv',col_types = 'fffdddd')
+d2=read_csv('data/TrialSummary.csv',col_select=1:10,col_types = 'ffddddddfd') %>%
   rename(m=`mass (g)`,
          len=`length (mm)`,
          slen=`surgery length (min)`,
@@ -13,19 +15,13 @@ d2=read_csv('TrialSummary.csv',col_select=1:10,col_types = 'ffddddddfd') %>%
          totalR=`time responsive (min)`,
          r=`rank`)
 
-test=d2 %>%
-  group_by(r) %>%
-  summarise(n=n())
-
-test=d %>%
-  group_by(trial) %>%
-  summarise(mA=mean(tailampcm),
-            mF=mean(tailfreq,na.rm=TRUE))
 ##### Kinematics #####
 loadfonts()
 
+# Preset margins around plot.
 margs=rep(3,4)
 
+# Undulation amplitude against stimulation frequency
 ampstimF=ggplot(data=d,aes(x=stimF,y=tailampcm))+
   geom_jitter(width=0.2,alpha=0.5)+
   xlab("Stimulation Frequency (Hz)")+
@@ -33,6 +29,7 @@ ampstimF=ggplot(data=d,aes(x=stimF,y=tailampcm))+
   theme_JEB()+
   theme(plot.margin = margin(margs))
 
+# Undulation amplitude against stimulation amplitude 
 ampstimA=ggplot(data=d,aes(x=stimA,y=tailampcm))+
   geom_jitter(width=0.2,alpha=0.5)+
   xlab(expression(paste("Stimulation Amplitude (", mu, "A)")))+
@@ -40,6 +37,7 @@ ampstimA=ggplot(data=d,aes(x=stimA,y=tailampcm))+
   theme_JEB()+
   theme(plot.margin = margin(margs))
 
+# Undulation frequency against stimulation frequency
 freqstimF=ggplot(data=d,aes(x=stimF,y=tailfreq))+
   geom_jitter(width=0.2,alpha=0.5)+
   scale_y_continuous(breaks=c(0,0.5,1,1.5))+
@@ -48,6 +46,7 @@ freqstimF=ggplot(data=d,aes(x=stimF,y=tailfreq))+
   theme_JEB()+
   theme(plot.margin = margin(margs))
 
+# Undulation amplitude against stimulation amplitude
 freqstimA=ggplot(data=d,aes(x=stimA,y=tailfreq))+
   geom_jitter(width=0.2,alpha=0.5)+
   xlab(expression(paste("Stimulation Amplitude (", mu, "A)")))+
@@ -56,7 +55,7 @@ freqstimA=ggplot(data=d,aes(x=stimA,y=tailfreq))+
   theme(plot.margin = margin(margs))
 
 
-
+# Plot for Fig. 6
 cairo_pdf(filename="ePhysKine.pdf",width=120/25.4,height=90/25.4)
 plot_grid(ampstimF+theme(axis.text.x=element_blank(),axis.title.x=element_blank()),
           ampstimA+theme(axis.text.x=element_blank(),axis.title.x=element_blank()),
@@ -73,7 +72,7 @@ dev.off()
 
 
 ##### Summary things #####
-#Estimate mass for Polyp2020-024
+# Estimate mass for Polyp2020-024
 sz=d2 %>%
   select(m,len) %>%
   drop_na()
@@ -95,6 +94,7 @@ work=d2 %>%
   mutate(Date=as.Date(Date,"%d-%b-%y")) %>%
   drop_na()
 
+# Plot preparation viability metrics
 loadfonts()
 plot.firstR=ggplot()+
   geom_point(data=work,aes(x=inprep,y=firstR,size=r,alpha=r))+
@@ -132,7 +132,7 @@ plot.totalRslen=ggplot()+
         legend.position="none",
         plot.margin=margin(rep(7,4)))
 
-
+# Genearte Fig. 3
 loadfonts()
 leg=get_legend(plot.firstR)
 plots=plot_grid(plot.firstRslen,plot.totalRslen,
@@ -147,4 +147,4 @@ plot_grid(leg,plots,
           ncol=1,
           rel_heights=c(0.1,1))
 dev.off()
-
+``

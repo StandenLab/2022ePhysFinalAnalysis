@@ -10,10 +10,6 @@ library(ggpubr)
 library(cowplot)
 library(MuMIn)
 rm(list=ls())
-
-##### Linear statistics & graphs #####
-source("theme_JEB.R")
-
 assumptions=function(modname){
   plotdata=data.frame(resid(modname))
   names(plotdata)=c('res')
@@ -25,7 +21,63 @@ assumptions=function(modname){
     geom_point()
   plot_grid(qqtreatment,histtreatment,fixtreat)
 }
+source("theme_JEB.R")
 
+##### Change in size over time/between groups #####
+#Load in the dataset & transform as required
+kVe=read.csv("FishTreatmentSchedule.csv") %>%
+  mutate(fish=as.factor(Fish),
+         treat=as.factor(Treatment),
+         comp=as.factor(comp),
+         used=as.factor(used),
+         across(starts_with("KINE"),as.numeric)) %>%
+  select(fish,treat,comp,used,
+         Start.Weight..g.,Start.Length..mm.,
+         KINE.Weight..g.,KINE.Length..mm.,
+         End.Weight..g.,End.Length..mm.)%>%
+  pivot_longer(matches('Weight|Length'),
+               names_to = c("timepoint","var"),values_to=c("test"),
+               names_pattern="(\\w+)\\.(\\w+)\\.\\.",
+               names_transform=list(timepoint=~factor(.x,levels=c("Start","KINE","End"),
+                                                      labels=c("start","kine","emg")))) %>% #Stack numerical variables into a single column
+  pivot_wider(names_from=var,values_from = test) %>% #Separate weight and length data into separate columns
+  rename("mass"="Weight",
+         "length"="Length") %>% #rename the columns
+  drop_na() %>%
+  filter(used=='y')
+
+#Test for difference in mass between treatments
+mod=lme(data=kVe,mass~treat,random=~1|fish)
+anova(mod,type='marginal')
+
+#Test for difference in lenght between treatments
+mod=lme(data=kVe,mass~timepoint,random=~1|fish)
+anova(mod,type='marginal')
+mod.m=emmeans(mod,pairwise~timepoint)
+mod.m
+
+##### Body electrode positions #####
+bdel=read_csv('BodyElectrodePosition.csv') %>%
+  mutate(across(where(is.character),as.factor),
+         across(matches("e.\\."),~./BL.emg*100)) %>%
+  pivot_longer(cols=starts_with("e"),names_to="position",
+               names_transform=list(position=~factor(.x,levels=c("e1.left","e2.left","e3.left","e4.left","e5.left",
+                                                                 "e3.right","e5.right"))))
+
+bdel.short=bdel%>%
+  filter(grepl('e3|e5', position)) %>%
+  droplevels() %>%
+  separate(position,c("electrode","side"))
+mod=lme(data=bdel.short,value~electrode+side,random=~1|fish)
+anova.lme(mod,type="marginal")
+
+bdel.sum=bdel %>%
+  group_by(position) %>%
+  summarise(m=mean(value,na.rm=TRUE),
+            n=n(),
+            se=sd(value,na.rm=TRUE)/n)
+
+##### Linear kinematics #####
 #Load in all relevant variables from Standen et al. 2014
 raw.data=read.csv('EMGTerrEMGSet_SortedKinePCA.csv') %>%
   mutate(across(where(is.character),as.factor)) %>%
@@ -81,7 +133,7 @@ summary(mod_swingdist)
 anova.lme(mod_swingdist,type="marginal")
 means_swingdist=data.frame(emmeans(mod_swingdist,~treatment))
 summary(emmeans(mod_swingdist,pairwise~treatment,adjust="none"))
-summary(emmeans(mod_swingdist,pairwise~treatment,adjust="tukey"))
+summary(emmeans(mod_swingdist,pairwise~treatment,adjust="bonferroni"))
 r.squaredGLMM(mod_swingdist)
 
 mod_perpdist=lme(data=kine.data,minperpdist2DFL~treatment,random=~1|fish/trial)
@@ -90,7 +142,7 @@ summary(mod_perpdist)
 anova.lme(mod_perpdist,type="marginal")
 means_perpdist=data.frame(emmeans(mod_perpdist,~treatment))
 summary(emmeans(mod_perpdist,pairwise~treatment,adjust="none"))
-summary(emmeans(mod_perpdist,pairwise~treatment,adjust="tukey"))
+summary(emmeans(mod_perpdist,pairwise~treatment,adjust="bonferroni"))
 r.squaredGLMM(mod_perpdist)
 
 mod_slipdist=lme(data=kine.data,slipdist2DFL~treatment,random=~1|fish/trial,
@@ -100,7 +152,7 @@ summary(mod_slipdist)
 anova.lme(mod_slipdist,type="marginal")
 means_slipdist=data.frame(emmeans(mod_slipdist,~treatment))
 summary(emmeans(mod_slipdist,pairwise~treatment,adjust="none"))
-summary(emmeans(mod_slipdist,pairwise~treatment,adjust="tukey"))
+summary(emmeans(mod_slipdist,pairwise~treatment,adjust="bonferroni"))
 r.squaredGLMM(mod_slipdist)
 
 #Presets for the figures
@@ -216,11 +268,11 @@ w=0.3
 
 nEr=read.csv('EMGTerr_EMGset_KinePolarRaw_elavframesB1.csv') %>% #Raw nose elevation
   mutate(treatment=as.factor(treatment)) %>%
-  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+  mutate(treatment=fct_rev(fct_relevel(fct_expand(treatment,"0"),sort)))
 nEs=read.csv('EMGTerr_EMGset_KinePolarSum_elavframesB1.csv') %>% #Summary nose elevation
   rename(treatment=Var1) %>%
   mutate(treatment=as.factor(treatment))%>%
-  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+  mutate(treatment=fct_rev(fct_relevel(fct_expand(treatment,"0"),sort)))
 
 nE.plot=ggplot()+
   geom_jitter(data=nEr,aes(y=elavframesB1,x=treatment,color=treatment),
@@ -244,11 +296,11 @@ nE.plot
 
 tSr=read.csv('EMGTerr_EMGset_KinePolarRaw_LframesB2.csv') %>% #Raw tail swing distance
   mutate(treatment=as.factor(treatment)) %>%
-  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+  mutate(treatment=fct_rev(fct_relevel(fct_expand(treatment,"0"),sort)))
 tSs=read.csv('EMGTerr_EMGset_KinePolarSum_LframesB2.csv') %>% #Summary tail swing distance
   rename(treatment=Var1) %>%
   mutate(treatment=as.factor(treatment))%>%
-  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+  mutate(treatment=fct_rev(fct_relevel(fct_expand(treatment,"0"),sort)))
 
 tS.plot=ggplot()+
   geom_jitter(data=tSr,aes(y=LframesB2,x=treatment,color=treatment),
@@ -273,11 +325,11 @@ tS.plot=ggplot()+
 
 pDr=read.csv('EMGTerr_EMGset_KinePolarRaw_minperpdistframeF.csv') %>% #Raw perpendicular distance
   mutate(treatment=as.factor(treatment)) %>%
-  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+  mutate(treatment=fct_rev(fct_relevel(fct_expand(treatment,"0"),sort)))
 pDs=read.csv('EMGTerr_EMGset_KinePolarSum_minperpdistframeF.csv') %>% #Summary perpendicular distance
   rename(treatment=Var1) %>%
   mutate(treatment=as.factor(treatment))%>%
-  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+  mutate(treatment=fct_rev(fct_relevel(fct_expand(treatment,"0"),sort)))
 
 pD.plot=ggplot()+
   geom_jitter(data=pDr,aes(y=minperpdistframeF,x=treatment,color=treatment),
@@ -302,11 +354,11 @@ pD.plot=ggplot()+
 
 sDr=read.csv('EMGTerr_EMGset_KinePolarRaw_startslip.csv') %>% #Raw slip distance
   mutate(treatment=as.factor(treatment)) %>%
-  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+  mutate(treatment=fct_rev(fct_relevel(fct_expand(treatment,"0"),sort)))
 sDs=read.csv('EMGTerr_EMGset_KinePolarSum_startslip.csv') %>% #Summary slip distance
   rename(treatment=Var1) %>%
   mutate(treatment=as.factor(treatment))%>%
-  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+  mutate(treatment=fct_rev(fct_relevel(fct_expand(treatment,"0"),sort)))
 
 sD.plot=ggplot()+
   geom_jitter(data=sDr,aes(y=startslip,x=treatment,color=treatment),
