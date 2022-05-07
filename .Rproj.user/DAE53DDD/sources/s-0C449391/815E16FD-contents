@@ -1,0 +1,340 @@
+#Set up the environment
+library(tidyverse)
+library(corrplot)
+library(MASS)
+library(caret)
+library(extrafont)
+library(nlme)
+library(emmeans)
+library(ggpubr)
+library(cowplot)
+library(MuMIn)
+rm(list=ls())
+
+##### Linear statistics & graphs #####
+source("theme_JEB.R")
+
+assumptions=function(modname){
+  plotdata=data.frame(resid(modname))
+  names(plotdata)=c('res')
+  plotdata$treatment=modname$data$treatment
+  plotdata$pos=modname$data$name
+  qqtreatment=ggqqplot(plotdata,"res",facet.by="treatment")
+  histtreatment=gghistogram(plotdata,"res",facet.by="treatment")
+  fixtreat=ggplot(data=plotdata,aes(x=treatment,y=res))+
+    geom_point()
+  plot_grid(qqtreatment,histtreatment,fixtreat)
+}
+
+#Load in all relevant variables from Standen et al. 2014
+raw.data=read.csv('EMGTerrEMGSet_SortedKinePCA.csv') %>%
+  mutate(across(where(is.character),as.factor)) %>%
+  dplyr::select('treatment','fish', 'trial',
+                'strokeduration','stancetime',
+                'AddArcLenFL','AbdArcLenFL','relelav_FL',
+                'slipdist2DFL','sliptime',
+                'relelav_BL','swngdistBL_2',
+                'minperpdist2DFL') %>%
+  droplevels() %>%
+  na.omit(.)
+
+#Check for correlations between variables
+res=cor.mtest(raw.data[,3:12])
+dat=cor(raw.data[,3:12])
+corrplot(dat,p.mat=res$p,type='upper',sig.level=0.01,insig='blank')
+
+#Keep only those that aren't correlated with eachother.
+kine.data=raw.data %>%
+  dplyr::select(fish,
+                trial,
+                treatment,
+                strokeduration,
+                AddArcLenFL,relelav_FL,
+                slipdist2DFL,
+                relelav_BL,swngdistBL_2,
+                minperpdist2DFL)
+
+#Center and scale the data first
+preprocess.params=kine.data %>%
+  preProcess(method=c("center","scale"))
+kine.transformed=preprocess.params %>%
+  predict(kine.data)
+
+#Run LDA & put output into dataframe
+mod.kine=MASS::lda(treatment ~ .,data=kine.transformed[,3:10])
+lda.data=cbind(kine.transformed,predict(mod.kine)$x)
+lda.data$fish=raw.data$fish
+
+#Run univariate statistics on variables of interest
+mod_elav=lme(data=kine.data,relelav_BL~treatment,random = ~1|fish/trial)
+assumptions(mod_elav)
+summary(mod_elav)
+anova.lme(mod_elav,type="marginal")
+means_elav=data.frame(emmeans(mod_elav,~treatment))
+summary(emmeans(mod_elav,pairwise~treatment,adjust="none"))
+summary(emmeans(mod_elav,pairwise~treatment,adjust="bonferroni"))
+r.squaredGLMM(mod_elav)
+
+mod_swingdist=lme(data=kine.data,swngdistBL_2~treatment,random=~1|fish/trial)
+assumptions(mod_elav)
+summary(mod_swingdist)
+anova.lme(mod_swingdist,type="marginal")
+means_swingdist=data.frame(emmeans(mod_swingdist,~treatment))
+summary(emmeans(mod_swingdist,pairwise~treatment,adjust="none"))
+summary(emmeans(mod_swingdist,pairwise~treatment,adjust="tukey"))
+r.squaredGLMM(mod_swingdist)
+
+mod_perpdist=lme(data=kine.data,minperpdist2DFL~treatment,random=~1|fish/trial)
+assumptions(mod_perpdist)
+summary(mod_perpdist)
+anova.lme(mod_perpdist,type="marginal")
+means_perpdist=data.frame(emmeans(mod_perpdist,~treatment))
+summary(emmeans(mod_perpdist,pairwise~treatment,adjust="none"))
+summary(emmeans(mod_perpdist,pairwise~treatment,adjust="tukey"))
+r.squaredGLMM(mod_perpdist)
+
+mod_slipdist=lme(data=kine.data,slipdist2DFL~treatment,random=~1|fish/trial,
+                 weights=varIdent(form=~1|treatment),)
+assumptions(mod_slipdist)
+summary(mod_slipdist)
+anova.lme(mod_slipdist,type="marginal")
+means_slipdist=data.frame(emmeans(mod_slipdist,~treatment))
+summary(emmeans(mod_slipdist,pairwise~treatment,adjust="none"))
+summary(emmeans(mod_slipdist,pairwise~treatment,adjust="tukey"))
+r.squaredGLMM(mod_slipdist)
+
+#Presets for the figures
+pal=c("#2DC0FA","#FA2D78","#000000")
+ps=1
+pz=2
+ms=1
+mz=6
+w=0.3
+
+loadfonts()
+plot.lda=ggplot()+
+  geom_point(data=lda.data,aes(x=LD1,y=LD2,color=treatment),shape=21,stroke=ps,size=pz)+
+  scale_color_manual(values=pal,name="",labels=c("Control","Exercise","Terrestrial"),breaks=c("ctrl","exer","terr"))+
+  theme_JEB()+
+  theme(legend.position = "top",
+        legend.box.margin = margin(0,0,0,0),
+        legend.box.spacing = unit(c(0,0,0.5,0),units="mm"),
+        legend.margin = margin(0,0,0,0),
+        legend.spacing = unit(c(0,0,0,0),"mm"),
+        legend.key.size = unit(1,"mm"),
+        plot.margin = unit(c(2,2,2,2),units="mm"))
+
+plot.elav=ggplot()+
+  geom_jitter(data=kine.data,aes(x=treatment,y=relelav_BL,color=treatment),shape=21,size=pz/2,width=w,alpha=0.5)+
+  geom_errorbar(data=means_elav,aes(x=treatment,ymin=emmean-SE,ymax=emmean+SE,color=treatment),width=w,size=pz/2)+
+  geom_errorbar(data=means_elav,aes(x=treatment,ymin=emmean,ymax=emmean,color=treatment),width=w*2,size=pz/2)+
+  scale_color_manual(values=pal,name="",labels=c("Control","Exercise","Terrestrial"),breaks=c("ctrl","exer","terr"))+
+  scale_x_discrete("Treatment",labels=c("ctrl"="Control","exer"="Exercise","terr"="Terrestrial"))+
+  annotate("text",x=3,y=0.085,label="*",size=8,family="Arial")+
+  ylim(0,0.1)+
+  ylab("Elevation (BL)")+
+  theme_JEB()+
+  theme(legend.position="none",
+        plot.margin = unit(c(2,2,2,2),units="mm"),
+        axis.title.y = element_text(vjust=1),
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank())
+
+plot.swingdist=ggplot()+
+  geom_jitter(data=kine.data,aes(x=treatment,y=swngdistBL_2,color=treatment),shape=21,size=pz/2,width=w,alpha=0.5)+
+  geom_errorbar(data=means_swingdist,aes(x=treatment,ymin=emmean-SE,ymax=emmean+SE,color=treatment),width=w,size=pz/2)+
+  geom_errorbar(data=means_swingdist,aes(x=treatment,ymin=emmean,ymax=emmean,color=treatment),width=w*2,size=pz/2)+
+  scale_color_manual(values=pal,name="",labels=c("Control","Exercise","Terrestrial"),breaks=c("ctrl","exer","terr"))+
+  scale_x_discrete("Treatment",labels=c("ctrl"="Control","exer"="Exercise","terr"="Terrestrial"))+
+  ylab("swgDist (BL)")+
+  ylim(1,4)+
+  theme_JEB()+
+  theme(legend.position="none",
+        plot.margin = unit(c(2,2,2,2),units="mm"),
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank())
+
+plot.perpdist=ggplot()+
+  geom_jitter(data=kine.data,aes(x=treatment,y=minperpdist2DFL,color=treatment),shape=21,size=pz/2,width=w,alpha=0.5)+
+  geom_errorbar(data=means_perpdist,aes(x=treatment,ymin=emmean-SE,ymax=emmean+SE,color=treatment),width=w,size=pz/2)+
+  geom_errorbar(data=means_perpdist,aes(x=treatment,ymin=emmean,ymax=emmean,color=treatment),width=w*2,size=pz/2)+
+  scale_color_manual(values=pal,name="",labels=c("Control","Exercise","Terrestrial"),breaks=c("ctrl","exer","terr"))+
+  scale_x_discrete("Treatment",labels=c("ctrl"="Control","exer"="Exercise","terr"="Terrestrial"))+
+  ylab("prpDist (FL)")+
+  ylim(0,1)+
+  theme_JEB()+
+  theme(legend.position="none",
+        axis.text.x = element_blank(),
+        plot.margin = unit(c(0,2,1,2),units="mm"))
+
+plot.slipdist=ggplot()+
+  geom_jitter(data=kine.data,aes(x=treatment,y=slipdist2DFL,color=treatment),shape=21,size=pz/2,width=w,alpha=0.5)+
+  geom_errorbar(data=means_slipdist,aes(x=treatment,ymin=emmean-SE,ymax=emmean+SE,color=treatment),width=w,size=pz/2)+
+  geom_errorbar(data=means_slipdist,aes(x=treatment,ymin=emmean,ymax=emmean,color=treatment),width=w*2,size=pz/2)+
+  scale_color_manual(values=pal,name="",labels=c("Control","Exercise","Terrestrial"),breaks=c("ctrl","exer","terr"))+
+  scale_x_discrete("Treatment",labels=c("ctrl"="Control","exer"="Exercise","terr"="Terrestrial"))+
+  ylab("slpDist (FL)")+
+  ylim(0,2)+
+  theme_JEB()+
+  theme(legend.position="none",
+        axis.text.x = element_blank(),
+        plot.margin = unit(c(0,2,1,2),units="mm"))
+
+
+univariate=plot_grid(plot.elav,
+                     plot.swingdist,
+                     plot.perpdist,plot.slipdist,
+                     ncol=2,
+                     nrow=2,
+                     rel_heights=c(0.3,0.3,0.7,0.7),
+                     labels=c("B","C","D","E"),
+                     label_size=12,
+                     vjust=rep(0.9,4),
+                     hjust=rep(-0.5,4),
+                     align="v")
+
+cairo_pdf(filename="KineLDA.pdf",width=90/25.4,height=110/25.4) 
+plot_grid(plot.lda,univariate,
+          nrow=2,
+          labels=c("A",""),
+          label_size=12,
+          hjust=c(-0.2,0))
+dev.off()
+
+##### Polar Graphs #####
+rm(list=ls())
+source("theme_JEB.R")
+
+#Presets for the figures
+pal=c("#2DC0FA","#FA2D78","#000000")
+ps=1
+pz=2
+ms=1
+mz=6
+w=0.3
+
+
+nEr=read.csv('EMGTerr_EMGset_KinePolarRaw_elavframesB1.csv') %>% #Raw nose elevation
+  mutate(treatment=as.factor(treatment)) %>%
+  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+nEs=read.csv('EMGTerr_EMGset_KinePolarSum_elavframesB1.csv') %>% #Summary nose elevation
+  rename(treatment=Var1) %>%
+  mutate(treatment=as.factor(treatment))%>%
+  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+
+nE.plot=ggplot()+
+  geom_jitter(data=nEr,aes(y=elavframesB1,x=treatment,color=treatment),
+              shape=21,size=pz/2,width=w/2,alpha=0.5)+
+  geom_errorbar(data=nEs,aes(ymin=summean,ymax=summean,x=treatment,color=treatment),
+                width=w*3,size=pz/2)+
+  geom_errorbar(data=nEs,aes(ymin=summean-sumvar,ymax=summean+sumvar,x=treatment,color=treatment),
+                width=w*2,size=pz/2)+
+  coord_polar(theta="y",start=-1*pi/2,direction=-1)+
+  scale_y_continuous(lim=c(0,2*pi),breaks=seq(0,2*pi,pi/4))+
+  scale_x_discrete(name="",labels=c("1"="Control","2"="Exercise","3"="Terrestrial"),expand=expansion(mult=c(0.5,0)))+
+  scale_color_manual(name="Treatment",values=pal,labels=c("Control","Exercise","Terrestrial"),breaks=c("1","2","3"))+
+  theme_JEB()+
+  theme(panel.grid.major=element_line(color='grey80'),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title=element_blank(),
+        legend.position="top")
+nE.plot
+
+tSr=read.csv('EMGTerr_EMGset_KinePolarRaw_LframesB2.csv') %>% #Raw tail swing distance
+  mutate(treatment=as.factor(treatment)) %>%
+  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+tSs=read.csv('EMGTerr_EMGset_KinePolarSum_LframesB2.csv') %>% #Summary tail swing distance
+  rename(treatment=Var1) %>%
+  mutate(treatment=as.factor(treatment))%>%
+  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+
+tS.plot=ggplot()+
+  geom_jitter(data=tSr,aes(y=LframesB2,x=treatment,color=treatment),
+              shape=21,size=pz/2,width=w/2,alpha=0.5)+
+  geom_errorbar(data=tSs,aes(ymin=summean,ymax=summean,x=treatment,color=treatment),
+                width=w*3,size=pz/2)+
+  geom_errorbar(data=tSs,aes(ymin=summean-sumvar,ymax=summean+sumvar,x=treatment,color=treatment),
+                width=w*2,size=pz/2)+
+  coord_polar(theta="y",start=-1*pi/2,direction=-1)+
+  scale_y_continuous(lim=c(0,2*pi),breaks=seq(0,2*pi,pi/4))+
+  scale_x_discrete(name="",labels=c("1"="Control","2"="Exercise","3"="Terrestrial"),expand=expansion(mult=c(0.5,0)))+
+  scale_color_manual(name="Treatment",values=pal,labels=c("Control","Exercise","Terrestrial"),breaks=c("1","2","3"))+
+  theme_JEB()+
+  theme(panel.grid.major=element_line(color='grey80'),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title=element_blank(),
+        panel.border=element_blank(),
+        legend.position="top")+
+  guides()
+
+pDr=read.csv('EMGTerr_EMGset_KinePolarRaw_minperpdistframeF.csv') %>% #Raw perpendicular distance
+  mutate(treatment=as.factor(treatment)) %>%
+  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+pDs=read.csv('EMGTerr_EMGset_KinePolarSum_minperpdistframeF.csv') %>% #Summary perpendicular distance
+  rename(treatment=Var1) %>%
+  mutate(treatment=as.factor(treatment))%>%
+  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+
+pD.plot=ggplot()+
+  geom_jitter(data=pDr,aes(y=minperpdistframeF,x=treatment,color=treatment),
+              shape=21,size=pz/2,width=w/2,alpha=0.5)+
+  geom_errorbar(data=pDs,aes(ymin=summean,ymax=summean,x=treatment,color=treatment),
+                width=w*3,size=pz/2)+
+  geom_errorbar(data=pDs,aes(ymin=summean-sumvar,ymax=summean+sumvar,x=treatment,color=treatment),
+                width=w*2,size=pz/2)+
+  coord_polar(theta="y",start=-1*pi/2,direction=-1)+
+  scale_y_continuous(lim=c(0,2*pi),breaks=seq(0,2*pi,pi/4))+
+  scale_x_discrete(name="",labels=c("1"="Control","2"="Exercise","3"="Terrestrial"),expand=expansion(mult=c(0.5,0)))+
+  scale_color_manual(name="Treatment",values=pal,labels=c("Control","Exercise","Terrestrial"),breaks=c("1","2","3"))+
+  theme_JEB()+
+  theme(panel.grid.major=element_line(color='grey80'),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title=element_blank(),
+        panel.border=element_blank(),
+        legend.position="top")+
+  guides()
+
+sDr=read.csv('EMGTerr_EMGset_KinePolarRaw_startslip.csv') %>% #Raw slip distance
+  mutate(treatment=as.factor(treatment)) %>%
+  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+sDs=read.csv('EMGTerr_EMGset_KinePolarSum_startslip.csv') %>% #Summary slip distance
+  rename(treatment=Var1) %>%
+  mutate(treatment=as.factor(treatment))%>%
+  mutate(treatment=fct_relevel(fct_expand(treatment,"0"),sort))
+
+sD.plot=ggplot()+
+  geom_jitter(data=sDr,aes(y=startslip,x=treatment,color=treatment),
+              shape=21,size=pz/2,width=w/2,alpha=0.5)+
+  geom_errorbar(data=sDs,aes(ymin=summean,ymax=summean,x=treatment,color=treatment),
+                width=w*3,size=pz/2)+
+  geom_errorbar(data=sDs,aes(ymin=summean-sumvar,ymax=summean+sumvar,x=treatment,color=treatment),
+                width=w*2,size=pz/2)+
+  coord_polar(theta="y",start=-1*pi/2,direction=-1)+
+  scale_y_continuous(lim=c(0,2*pi),breaks=seq(0,2*pi,pi/4))+
+  scale_x_discrete(name="",labels=c("1"="Control","2"="Exercise","3"="Terrestrial"),expand=expansion(mult=c(0.5,0)))+
+  scale_color_manual(name="Treatment",values=pal,labels=c("Control","Exercise","Terrestrial"),breaks=c("1","2","3"))+
+  theme_JEB()+
+  theme(panel.grid.major=element_line(color='grey80'),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title=element_blank(),
+        panel.border=element_blank(),
+        legend.position="top")+
+  guides()
+
+loadfonts()
+cairo_pdf(filename="KinePolar.pdf",width=90/25.4,height=80/25.4) 
+plot_grid(nE.plot+theme(legend.position="none",plot.margin=margin(rep(-1,4))),
+          tS.plot+theme(legend.position="none",plot.margin=margin(rep(-1,4))),
+          pD.plot+theme(legend.position="none",plot.margin=margin(rep(-1,4))),
+          sD.plot+theme(legend.position="none",plot.margin=margin(rep(-1,4))),
+          labels=c("A","B","C","D"),
+          label_size=12)
+dev.off()

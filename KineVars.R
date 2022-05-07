@@ -1,0 +1,150 @@
+library(tidyverse)
+library(extrafont)
+library(cowplot)
+library(mosaic)
+source('theme_JEB.R')
+d=read_csv('ePhys_KineVars.csv',col_types = 'fffdddd')
+d2=read_csv('TrialSummary.csv',col_select=1:10,col_types = 'ffddddddfd') %>%
+  rename(m=`mass (g)`,
+         len=`length (mm)`,
+         slen=`surgery length (min)`,
+         inprep=`time to into prep after surgery (min)`,
+         firstR=`time to response after surgery (min)`,
+         totalR=`time responsive (min)`,
+         r=`rank`)
+
+test=d2 %>%
+  group_by(r) %>%
+  summarise(n=n())
+
+test=d %>%
+  group_by(trial) %>%
+  summarise(mA=mean(tailampcm),
+            mF=mean(tailfreq,na.rm=TRUE))
+##### Kinematics #####
+loadfonts()
+
+margs=rep(3,4)
+
+ampstimF=ggplot(data=d,aes(x=stimF,y=tailampcm))+
+  geom_jitter(width=0.2,alpha=0.5)+
+  xlab("Stimulation Frequency (Hz)")+
+  ylab("Tail Amplitude (cm)")+
+  theme_JEB()+
+  theme(plot.margin = margin(margs))
+
+ampstimA=ggplot(data=d,aes(x=stimA,y=tailampcm))+
+  geom_jitter(width=0.2,alpha=0.5)+
+  xlab(expression(paste("Stimulation Amplitude (", mu, "A)")))+
+  ylab("Tail Amplitude (cm)")+
+  theme_JEB()+
+  theme(plot.margin = margin(margs))
+
+freqstimF=ggplot(data=d,aes(x=stimF,y=tailfreq))+
+  geom_jitter(width=0.2,alpha=0.5)+
+  scale_y_continuous(breaks=c(0,0.5,1,1.5))+
+  xlab("Stimulation Frequency (Hz)")+
+  ylab("Tail Frequency (Hz)")+
+  theme_JEB()+
+  theme(plot.margin = margin(margs))
+
+freqstimA=ggplot(data=d,aes(x=stimA,y=tailfreq))+
+  geom_jitter(width=0.2,alpha=0.5)+
+  xlab(expression(paste("Stimulation Amplitude (", mu, "A)")))+
+  ylab("Tail Frequency (Hz)")+
+  theme_JEB()+
+  theme(plot.margin = margin(margs))
+
+
+
+cairo_pdf(filename="ePhysKine.pdf",width=120/25.4,height=90/25.4)
+plot_grid(ampstimF+theme(axis.text.x=element_blank(),axis.title.x=element_blank()),
+          ampstimA+theme(axis.text.x=element_blank(),axis.title.x=element_blank()),
+          freqstimF,
+          freqstimA,
+          nrow=2,
+          rel_heights = c(0.45,0.55),
+          labels=c("A","B","C","D"),
+          align="v",
+          vjust=1.2,
+          hjust = -0.1)
+dev.off()
+
+
+
+##### Summary things #####
+#Estimate mass for Polyp2020-024
+sz=d2 %>%
+  select(m,len) %>%
+  drop_na()
+mod=lm(data=sz,m~len) #linear model fits well enough here
+sz$p1=predict(mod)    #in case you'd like to plot it.
+new <- data.frame(len=c(106)) #generate the particular length we want to estimate mass for
+predict(mod, newdata = new)   #generate mass estimate
+ggplot()+
+  geom_point(data=sz,aes(x=len,y=m))+
+  geom_line(data=sz,aes(x=len,y=p1),color='red')
+summary(mod)
+mean(sz$m)
+mean(sz$len)
+sd(sz$m)/sqrt(30)   #n=30 here because we only have 30 measurements (3 fish weren't measured for length and weight)
+sd(sz$len)/sqrt(30)
+
+work=d2 %>%
+  select(Date,slen,inprep,firstR,totalR,r) %>%
+  mutate(Date=as.Date(Date,"%d-%b-%y")) %>%
+  drop_na()
+
+loadfonts()
+plot.firstR=ggplot()+
+  geom_point(data=work,aes(x=inprep,y=firstR,size=r,alpha=r))+
+  labs(x="Surgery-Into Prep (min)",y="Surgery-Responsive (min)")+
+  ylim(-2,42)+
+  theme_JEB()+
+  theme(axis.title.y=element_text(margin=margin(r=3)),
+        legend.position="top",
+        plot.margin=margin(rep(7,4)),
+        legend.margin = margin(rep(0,4)),
+        legend.box.margin = margin(rep(0,4)),
+        legend.box.spacing = unit(2,"mm"))
+plot.totalR=ggplot()+
+  geom_point(data=work,aes(x=inprep,y=totalR,size=r,alpha=r))+
+  labs(x="Surgery-Into Prep (min)",y="Total Responsive (min)")+
+  ylim(20,330)+
+  theme_JEB()+
+  theme(axis.title.y=element_text(margin=margin(r=3)),
+        legend.position="none",
+        plot.margin=margin(rep(7,4)))
+plot.firstRslen=ggplot()+
+  geom_point(data=work,aes(x=slen,y=firstR,size=r,alpha=r))+
+  labs(x="Surgery Length (min)",y="Surgery-Responsive (min)")+
+  ylim(-2,42)+
+  theme_JEB()+
+  theme(axis.title.y=element_text(margin=margin(r=3)),
+        legend.position="none",
+        plot.margin=margin(rep(7,4)))
+plot.totalRslen=ggplot()+
+  geom_point(data=work,aes(x=slen,y=totalR,size=r,alpha=r))+
+  labs(x="Surgery Length (min)",y="Total Responsive (min)")+
+  ylim(20,330)+
+  theme_JEB()+
+  theme(axis.title.y=element_text(margin=margin(r=3)),
+        legend.position="none",
+        plot.margin=margin(rep(7,4)))
+
+
+loadfonts()
+leg=get_legend(plot.firstR)
+plots=plot_grid(plot.firstRslen,plot.totalRslen,
+                plot.firstR+theme(legend.position = "none"),plot.totalR,
+                labels="AUTO",nrow=2,
+                rel_heights = c(1,1),
+                align="v",
+                vjust=1.2)
+cairo_pdf(filename="ePhysSummary.pdf",width=180/25.4,height=110/25.4)
+plot_grid(leg,plots,
+          nrow=2,
+          ncol=1,
+          rel_heights=c(0.1,1))
+dev.off()
+

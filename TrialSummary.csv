@@ -1,0 +1,34 @@
+Date,Fish,mass (g),length (mm),surgery length (min),time to into prep after surgery (min),time to response after surgery (min),time responsive (min),stim?,rank,comments
+26-Feb-20,Polyp2019-109,5.03,104,NaN,NaN,45,30,yes,1,nothing happened.
+28-Feb-20,Polyp2019-108,6.24,93,5,7,12,> 30,yes,1,nothing happened.
+03-Mar-20,Polyp2019-111,5.64,105,8,10,0,145,yes,1,nothing happened.
+06-Mar-20,Polyp2019-110,6.85,105,10,20,25,60,yes,1,nothing happened. May have scrambled the brains while placing the refrence electrode.
+06-Mar-20,Polyp2019-098,5.38,101,5,13,20,60,no,0,
+09-Mar-20,Polyp2019-100,5.49,101,7,10,10,60,no,0,
+11-Mar-20,Polyp2019-099,5.66,106,6,10,10,50,no,0,
+19-Mar-20,Polyp2019-102,5.89,102,9,12,12,195,yes,1,"nothing happened. Less blood loss during surgery, room temp Ringers, into ice bath as bubbles started."
+25-Mar-20,Polyp2019-101,7,114,9,10,10,45,no,0,"possibly more blood loss, started cut into brain case shallow, but removing the silvery layer created bleeding"
+27-Mar-20,Polyp2019-104,NaN,NaN,11,18,18,70,no,0,"a little more blood loss, but not terrible. Brain flooded with fish water a couple of times."
+08-May-20,Polyp2019-103,5.14,108,9,17,17,>75,yes,1,"nothing, was breathing at the end of surgery."
+15-May-20,Polyp2019-097,4.51,105,8,15,15,>30,yes,2,"got some twitches, never a super active prep though. Surgery may have gone too deep."
+05-Jun-20,Polyp2019-096,5.12,105,6,12,40,>60,yes,1,"nothing. Less blood loss, good blood flow, weird response to anesthetic."
+12-Jun-20,Polyp2019-095,NaN,NaN,8,8,15,68,yes,1,nothing.
+25-Jul-20,Polyp2019-092,4.32,100,8,10,34,245,yes,1,"nothing, surgery looked good, took longer to be out, spontaneous movement"
+11-Sep-20,Polyp2019-094,5.77,110,9,9,9,110,yes,3,repeatable responses to stim
+18-Sep-20,Polyp2019-093,5.79,113,8,6,6,105,yes,2,"no repeatable behaviour, eye movement, some spontaneous movement"
+10-Oct-20,Polyp2020-035,5.7,98,9,7,7,186,yes,2,"found response by chance, was ventilating, faster aCSF pass over the brain, continuous water over the gills, prep seemed ""better""; pH=7.55"
+18-Oct-20,Polyp2020-040,5.48,100,7,10,15,45,yes,1,"surgery not smooth, lots of bleeding, dead before starting stimulation; surgery botched."
+29-Oct-20,Polyp2020-044,3.93,89,8,9,19,320,yes,1,nothing
+15-Dec-20,Polyp2020-043,NaN,NaN,6,9,17,165,yes,1,nothing
+14-Jan-21,Polyp2020-045,5.11,93,8,9,20,104,yes,1,nothing
+13-Jul-21,Polyp2020-024,5.55,106,7,5,25,160,yes,4,this was the repeatable swimming pattern fish. Videos are saved. No blood flow post surgery.
+15-Jul-21,Polyp2020-023,3.4,96,9,11,20,215,yes,1,nothing
+20-Jul-21,Polyp2020-036,6.98,108,7,8,23,169,yes,1,"more blood loss than ideal, first cut should get posterior to the eyes. Looked good initially, but went downhill quickly."
+20-Jan-22,Polyp2020-161,4.8,112,9,9,39,258,yes,2,"got something, but not really repeatable."
+25-Jan-22,Polyp2020-127,5.7,102,6,9,41,>60,yes,1,nothing really
+27-Jan-22,Polyp2020-159,4.96,98,5,13,23,120,yes,1,nothing
+29-Jan-22,Polyp2020-155,4.67,98,4,9,32,>30,yes,1,nothing
+01-Feb-22,Polyp2020-123,5.63,105,6,5,5,>30,yes,1,nothing
+03-Feb-22,Polyp2020-120,4.32,96,7,6,27,300,yes,1,nothing
+10-Feb-22,Polyp2020-121,4.94,103,9,6,NaN,NaN,no,0,brain flooded.
+12-Feb-22,Polyp2020-122,3.9,99,6,5,5,209,yes,1,nothing
